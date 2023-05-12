@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+import argparse
+import sys
+import json
+
+from genderbias import ALL_SCANNED_DETECTORS, Document
+
+
+def main():
+    """
+    Run the command-line genderbias interface.
+
+    For help, see `genderbias --help`.
+
+    """
+    parser = argparse.ArgumentParser(description="CLI for gender-bias detection")
+    parser.add_argument(
+        "--file", "-f", dest="file", required=False, help="The file to check"
+    )
+    parser.add_argument(
+        "--json",
+        "-j",
+        dest="json",
+        required=False,
+        default=False,
+        action="store_true",
+        help="Enable JSON output, instead of text",
+    )
+
+    parser.add_argument(
+        "--no-color",
+        dest="no_color",
+        required=False,
+        default=False,
+        action="store_true",
+        help="Use plaintext output (instead of color + formatting)",
+    )
+
+    parser.add_argument(
+        "--list-detectors",
+        dest="list_detectors",
+        default=False,
+        action="store_true",
+        help="List the available detectors",
+    )
+    parser.add_argument(
+        "--detectors",
+        dest="detectors",
+        default="",
+        help="Use specific detectors, not all available",
+    )
+
+    args = parser.parse_args()
+
+    if args.list_detectors:
+        print("AVAILABLE DETECTORS:")
+        for class_name in ALL_SCANNED_DETECTORS:
+            print(" " + class_name)
+        sys.exit(0)
+
+    if args.detectors:
+        if args.detectors in ALL_SCANNED_DETECTORS:
+            detectors = [ALL_SCANNED_DETECTORS[args.detectors]]
+        else:
+            print("Detector named '{}' not available.".format(args.detectors))
+            sys.exit(1)
+    else:
+        detectors = ALL_SCANNED_DETECTORS.values()
+
+    if not args.file:
+        # If no file is passed, then read from stdin
+        doc = Document(sys.stdin.read())
+    else:
+        # Otherwise, load the file
+        doc = Document(args.file)
+
+    reports = []
+    for detector in detectors:
+        reports.append(detector().get_report(doc))
+
+    if not args.json:
+        if args.no_color:
+            print(
+                "\n".join(
+                    report.pprint(use_color=False)
+                    for report in reports
+                    if len(report.get_flags())
+                )
+            )
+        else:
+            print(
+                "\n".join(
+                    report.pprint() for report in reports if len(report.get_flags())
+                )
+            )
+    else:
+        reports_data = [report.to_dict() for report in reports]
+        print(json.dumps(reports_data))
+
+
+if __name__ == "__main__":
+    main()
